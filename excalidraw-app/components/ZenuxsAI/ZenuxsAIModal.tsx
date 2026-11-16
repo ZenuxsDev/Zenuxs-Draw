@@ -67,12 +67,15 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     message: string;
   } | null>(null);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
-  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportMenuTarget, setExportMenuTarget] = useState<
+    "header" | "thread" | null
+  >(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const headerExportRef = useRef<HTMLDivElement>(null);
+  const threadExportRef = useRef<HTMLDivElement>(null);
 
   const activeConv: ChatConversation =
     conversations.find((c) => c.id === activeConversationId) ||
@@ -96,19 +99,21 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        showExportMenu &&
-        exportMenuRef.current &&
-        !exportMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowExportMenu(false);
+      if (exportMenuTarget) {
+        const targetNode = event.target as Node;
+        if (
+          !headerExportRef.current?.contains(targetNode) &&
+          !threadExportRef.current?.contains(targetNode)
+        ) {
+          setExportMenuTarget(null);
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showExportMenu]);
+  }, [exportMenuTarget]);
 
   if (!isOpen) {
     return null;
@@ -174,7 +179,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     try {
       exportCanvasAsJSON(excalidrawAPI);
       showToast("Canvas exported (.json)");
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Export failed: ${err.message || "Unknown error"}`);
     }
@@ -184,7 +189,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     try {
       exportCanvasElementsOnly(excalidrawAPI);
       showToast("Elements exported (.json)");
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Export failed: ${err.message || "Unknown error"}`);
     }
@@ -199,7 +204,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
       } else {
         showToast("Copy failed");
       }
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Copy failed: ${err.message || "Unknown error"}`);
     }
@@ -209,7 +214,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     try {
       exportChatAsJSON(activeConv);
       showToast("Chat exported (.json)");
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Export failed: ${err.message || "Unknown error"}`);
     }
@@ -219,7 +224,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     try {
       exportChatAsMarkdown(activeConv);
       showToast("Chat exported (.md)");
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Export failed: ${err.message || "Unknown error"}`);
     }
@@ -234,7 +239,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
       } else {
         showToast("Copy failed");
       }
-      setShowExportMenu(false);
+      setExportMenuTarget(null);
     } catch (err: any) {
       showToast(`Copy failed: ${err.message || "Unknown error"}`);
     }
@@ -447,6 +452,151 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
     });
   };
 
+  const renderExportMenu = () => (
+    <div className="export-dropdown-menu">
+      <div className="dropdown-section-title">Canvas Diagram</div>
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleExportCanvasJSON}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Export Canvas (.json)</span>
+          <span className="item-desc">Full whiteboard diagram format</span>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleExportElementsJSON}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Export Elements (.json)</span>
+          <span className="item-desc">Shapes array only</span>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleCopyCanvasJSON}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Copy Canvas JSON</span>
+          <span className="item-desc">Direct to clipboard</span>
+        </div>
+      </button>
+
+      <div className="dropdown-divider" />
+
+      <div className="dropdown-section-title">Chat Conversation</div>
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleExportChatJSON}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Export Chat (.json)</span>
+          <span className="item-desc">Messages & tool history</span>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleExportChatMarkdown}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Export Chat (.md)</span>
+          <span className="item-desc">Formatted markdown log</span>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className="dropdown-menu-item"
+        onClick={handleCopyChatMarkdown}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+        <div className="item-text">
+          <span className="item-title">Copy Chat Transcript</span>
+          <span className="item-desc">Markdown to clipboard</span>
+        </div>
+      </button>
+    </div>
+  );
+
   return (
     <div className={`zenuxs-ai-window ${isMinimized ? "minimized" : ""}`}>
       {/* Header */}
@@ -511,11 +661,18 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
           </button>
 
           {/* Export Menu Dropdown */}
-          <div className="export-menu-container" ref={exportMenuRef}>
+          <div className="export-menu-container" ref={headerExportRef}>
             <button
-              title="Export Canvas or Chat"
-              className={`header-btn ${showExportMenu ? "active" : ""}`}
-              onClick={() => setShowExportMenu(!showExportMenu)}
+              type="button"
+              title="Export Canvas or Chat to JSON"
+              className={`header-btn ${
+                exportMenuTarget === "header" ? "active" : ""
+              }`}
+              onClick={() =>
+                setExportMenuTarget(
+                  exportMenuTarget === "header" ? null : "header",
+                )
+              }
             >
               <svg
                 width="15"
@@ -531,152 +688,7 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
               </svg>
             </button>
 
-            {showExportMenu && (
-              <div className="export-dropdown-menu">
-                <div className="dropdown-section-title">Canvas Diagram</div>
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleExportCanvasJSON}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Export Canvas (.json)</span>
-                    <span className="item-desc">
-                      Full whiteboard diagram format
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleExportElementsJSON}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Export Elements (.json)</span>
-                    <span className="item-desc">Shapes array only</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleCopyCanvasJSON}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Copy Canvas JSON</span>
-                    <span className="item-desc">Direct to clipboard</span>
-                  </div>
-                </button>
-
-                <div className="dropdown-divider" />
-
-                <div className="dropdown-section-title">Chat Conversation</div>
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleExportChatJSON}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Export Chat (.json)</span>
-                    <span className="item-desc">Messages & tool history</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleExportChatMarkdown}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Export Chat (.md)</span>
-                    <span className="item-desc">Formatted markdown log</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="dropdown-menu-item"
-                  onClick={handleCopyChatMarkdown}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                  <div className="item-text">
-                    <span className="item-title">Copy Chat Transcript</span>
-                    <span className="item-desc">Markdown to clipboard</span>
-                  </div>
-                </button>
-              </div>
-            )}
+            {exportMenuTarget === "header" && renderExportMenu()}
           </div>
 
           {/* Settings Button */}
@@ -833,26 +845,38 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
           <div className="chat-thread-bar">
             <span className="thread-title">{activeConv.title}</span>
             <div className="thread-actions">
-              <button
-                className="thread-action-btn"
-                title="Export Canvas or Chat"
-                onClick={() => setShowExportMenu(!showExportMenu)}
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+              <div className="export-menu-container" ref={threadExportRef}>
+                <button
+                  type="button"
+                  className={`thread-action-btn ${
+                    exportMenuTarget === "thread" ? "active" : ""
+                  }`}
+                  title="Export Canvas or Chat to JSON"
+                  onClick={() =>
+                    setExportMenuTarget(
+                      exportMenuTarget === "thread" ? null : "thread",
+                    )
+                  }
                 >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                <span>Export</span>
-              </button>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Export JSON</span>
+                </button>
+                {exportMenuTarget === "thread" && renderExportMenu()}
+              </div>
+
               <button
+                type="button"
                 className="clear-thread-btn"
                 title="Clear current messages"
                 onClick={handleClearCurrentChat}
@@ -974,6 +998,65 @@ export const ZenuxsAIModal: React.FC<ZenuxsAIModalProps> = ({
                         {renderFormattedText(msg.content)}
                       </div>
                     )}
+
+                    {/* Direct quick export actions when AI creates/modifies elements */}
+                    {msg.role === "assistant" &&
+                      msg.toolExecutions &&
+                      msg.toolExecutions.some(
+                        (t) =>
+                          t.status === "success" &&
+                          (t.name === "create_elements" ||
+                            t.name === "update_elements"),
+                      ) && (
+                        <div className="message-quick-actions">
+                          <button
+                            type="button"
+                            className="quick-export-pill"
+                            title="Export Canvas to JSON"
+                            onClick={handleExportCanvasJSON}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            <span>Export Canvas JSON</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="quick-export-pill"
+                            title="Copy Canvas JSON to clipboard"
+                            onClick={handleCopyCanvasJSON}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <rect
+                                x="9"
+                                y="9"
+                                width="13"
+                                height="13"
+                                rx="2"
+                                ry="2"
+                              />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            <span>Copy JSON</span>
+                          </button>
+                        </div>
+                      )}
                   </div>
                 ))
             )}
