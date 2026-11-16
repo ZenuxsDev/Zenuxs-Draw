@@ -304,12 +304,93 @@ describe("Zenuxs AI - Edit & Update Tool", () => {
     expect(capturedElements[0].strokeColor).toBe("#2f9e44");
 
     // Test alias 'edit_elements' through executeCanvasTool
-    const aliasResult = executeCanvasTool(mockAPI, "edit_elements", {
+    const aliasResult: any = executeCanvasTool(mockAPI, "edit_elements", {
       updates: [{ id: "box_1", x: 250, y: 300 }],
     });
 
     expect(aliasResult.success).toBe(true);
     expect(capturedElements[0].x).toBe(250);
     expect(capturedElements[0].y).toBe(300);
+  });
+});
+
+describe("Zenuxs AI - Auto-Layout & Arrow Alignment", () => {
+  it("auto-expands box dimensions based on multi-line text", async () => {
+    const { normalizeSkeletonElement } = await import(
+      "../services/zenuxsAI/canvasTools"
+    );
+
+    const longText = Array(20).fill("field_name: varchar(255)").join("\n");
+    const raw = {
+      type: "rectangle",
+      text: longText,
+      width: 100, // LLM tried giving small box
+      height: 80,
+    };
+
+    const normalized = normalizeSkeletonElement(raw);
+    // 20 lines * 22px + 45px = ~485px
+    expect(normalized.height).toBeGreaterThanOrEqual(450);
+    expect(normalized.width).toBeGreaterThanOrEqual(180);
+  });
+
+  it("resolves overlapping boxes in the same column and aligns arrow endpoints to perimeters", async () => {
+    const { resolveInternalCollisionsAndAlignArrows } = await import(
+      "../services/zenuxsAI/canvasTools"
+    );
+
+    const skeletons = [
+      {
+        id: "source_parent",
+        type: "rectangle",
+        x: 100,
+        y: 100,
+        width: 250,
+        height: 400,
+      },
+      {
+        id: "child_top",
+        type: "rectangle",
+        x: 500,
+        y: 100,
+        width: 200,
+        height: 200,
+      },
+      {
+        id: "child_bottom",
+        type: "rectangle",
+        x: 500,
+        y: 180, // Colliding with child_top (which ends at y=300)!
+        width: 200,
+        height: 200,
+      },
+      {
+        id: "arrow_to_top",
+        type: "arrow",
+        start: { id: "source_parent" },
+        end: { id: "child_top" },
+      },
+      {
+        id: "arrow_to_bottom",
+        type: "arrow",
+        start: { id: "source_parent" },
+        end: { id: "child_bottom" },
+      },
+    ];
+
+    resolveInternalCollisionsAndAlignArrows(skeletons);
+
+    const childTop: any = skeletons.find((s) => s.id === "child_top");
+    const childBottom: any = skeletons.find((s) => s.id === "child_bottom");
+    const arrowBottom: any = skeletons.find((s) => s.id === "arrow_to_bottom");
+
+    // Child bottom should have been pushed down past childTop (100 + 200 + 55 = 355)
+    expect(childBottom.y).toBeGreaterThanOrEqual(
+      childTop.y + childTop.height + 50,
+    );
+
+    // Arrow to bottom should exit from right edge of source (x=350) and arrive at left edge of child_bottom (x=500)
+    expect(arrowBottom.x).toBe(350);
+    expect(arrowBottom.points[1][0]).toBe(500 - 350); // delta X = 150
   });
 });

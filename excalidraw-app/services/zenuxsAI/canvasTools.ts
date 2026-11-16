@@ -699,6 +699,29 @@ export const normalizeSkeletonElement = (
       : "Text";
   }
 
+  // Auto-calculate dimensions if text is present to prevent text overflow and box collapsing
+  const textStr =
+    el.text || (typeof el.label === "string" ? el.label : el.label?.text) || "";
+  if (textStr && typeof textStr === "string") {
+    const lines = textStr.split("\n");
+    const lineCount = lines.length;
+    let maxLineLen = 0;
+    for (const l of lines) {
+      if (l.trim().length > maxLineLen) {
+        maxLineLen = l.trim().length;
+      }
+    }
+
+    const minRequiredWidth = Math.max(
+      el.width || 180,
+      Math.min(650, maxLineLen * 8.5 + 44),
+    );
+    const minRequiredHeight = Math.max(el.height || 80, lineCount * 22 + 45);
+
+    el.width = Math.round(minRequiredWidth);
+    el.height = Math.round(minRequiredHeight);
+  }
+
   // Handle arrows: ensure points array and endArrowhead defaults
   if (el.type === "arrow" || el.type === "line") {
     if (!Array.isArray(el.points) || el.points.length < 2) {
@@ -829,6 +852,161 @@ export const normalizeSkeletonElement = (
   return el;
 };
 
+// Auto-layout helper: resolves vertical/horizontal collisions between elements in a diagram
+// and aligns arrow start/end points to component perimeters so arrows never cut through shapes
+export const resolveInternalCollisionsAndAlignArrows = (skeletons: any[]) => {
+  const shapes = skeletons.filter(
+    (el) =>
+      el.type !== "arrow" &&
+      el.type !== "line" &&
+      typeof el.x === "number" &&
+      typeof el.y === "number",
+  );
+
+  const shapesMap = new Map<string, any>();
+  for (const s of shapes) {
+    shapesMap.set(s.id, s);
+  }
+
+  const VERTICAL_GAP = 55;
+  const HORIZONTAL_GAP = 70;
+
+  // 1. Column-based vertical overlap resolution
+  // Sort shapes primarily by x (grouping by columns), then by y
+  shapes.sort((a, b) => {
+    if (Math.abs(a.x - b.x) > 60) {
+      return a.x - b.x;
+    }
+    return a.y - b.y;
+  });
+
+  for (let i = 0; i < shapes.length; i++) {
+    const curr = shapes[i];
+    for (let j = 0; j < i; j++) {
+      const prev = shapes[j];
+      const horizOverlap =
+        curr.x < prev.x + prev.width && curr.x + curr.width > prev.x;
+
+      if (horizOverlap) {
+        const minAllowedY = prev.y + prev.height + VERTICAL_GAP;
+        if (curr.y < minAllowedY) {
+          const shiftY = minAllowedY - curr.y;
+          curr.y = minAllowedY;
+          for (let k = i + 1; k < shapes.length; k++) {
+            const next = shapes[k];
+            const nextHorizOverlap =
+              next.x < curr.x + curr.width && next.x + next.width > curr.x;
+            if (nextHorizOverlap && next.y >= prev.y) {
+              next.y += shiftY;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Secondary 2D AABB collision check
+  for (let pass = 0; pass < 3; pass++) {
+    let hasCollision = false;
+    for (let i = 0; i < shapes.length; i++) {
+      for (let j = i + 1; j < shapes.length; j++) {
+        const a = shapes[i];
+        const b = shapes[j];
+
+        const overlapX =
+          Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+        const overlapY =
+          Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+
+        if (overlapX > 0 && overlapY > 0) {
+          hasCollision = true;
+          if (b.y >= a.y) {
+            b.y = a.y + a.height + VERTICAL_GAP;
+          } else {
+            b.x = a.x + a.width + HORIZONTAL_GAP;
+          }
+        }
+      }
+    }
+    if (!hasCollision) {
+      break;
+    }
+  }
+
+  // 3. Arrow Perimeter Departure & Arrival Alignment
+  const arrows = skeletons.filter(
+    (el) => el.type === "arrow" || el.type === "line",
+  );
+
+  for (const arrow of arrows) {
+    const sourceId = arrow.start?.id || arrow.startBinding;
+    const targetId = arrow.end?.id || arrow.endBinding;
+
+    const source = sourceId ? shapesMap.get(String(sourceId)) : null;
+    const target = targetId ? shapesMap.get(String(targetId)) : null;
+
+    if (source && target) {
+      let startX: number;
+      let startY: number;
+      let endX: number;
+      let endY: number;
+
+      const targetIsRight = target.x >= source.x + source.width - 30;
+      const targetIsLeft = target.x + target.width <= source.x + 30;
+      const targetIsBelow = target.y >= source.y + source.height - 30;
+      const targetIsAbove = target.y + target.height <= source.y + 30;
+
+      if (targetIsRight) {
+        startX = source.x + source.width;
+        const targetMidY = target.y + target.height / 2;
+        startY = Math.min(
+          source.y + source.height - 20,
+          Math.max(source.y + 20, targetMidY),
+        );
+
+        endX = target.x;
+        endY = target.y + target.height / 2;
+      } else if (targetIsLeft) {
+        startX = source.x;
+        const targetMidY = target.y + target.height / 2;
+        startY = Math.min(
+          source.y + source.height - 20,
+          Math.max(source.y + 20, targetMidY),
+        );
+
+        endX = target.x + target.width;
+        endY = target.y + target.height / 2;
+      } else if (targetIsBelow) {
+        startX = source.x + source.width / 2;
+        startY = source.y + source.height;
+
+        endX = target.x + target.width / 2;
+        endY = target.y;
+      } else if (targetIsAbove) {
+        startX = source.x + source.width / 2;
+        startY = source.y;
+
+        endX = target.x + target.width / 2;
+        endY = target.y + target.height;
+      } else {
+        startX = source.x + source.width;
+        startY = source.y + source.height / 2;
+        endX = target.x;
+        endY = target.y + target.height / 2;
+      }
+
+      arrow.x = Math.round(startX);
+      arrow.y = Math.round(startY);
+      arrow.points = [
+        [0, 0],
+        [Math.round(endX - startX), Math.round(endY - startY)],
+      ];
+    }
+  }
+
+  return skeletons;
+};
+
 // Tool: create_elements
 export const executeCreateElements = (
   excalidrawAPI: ExcalidrawImperativeAPI,
@@ -850,6 +1028,9 @@ export const executeCreateElements = (
   const normalizedSkeletons = rawElements.map((raw) =>
     normalizeSkeletonElement(raw, styleProfile),
   );
+
+  // Auto-layout: resolve internal collisions between newly generated shapes and align arrows to perimeters
+  resolveInternalCollisionsAndAlignArrows(normalizedSkeletons);
 
   // --- Spatial Placement & Overlap Prevention ---
   if (existingElements.length > 0 && normalizedSkeletons.length > 0) {
