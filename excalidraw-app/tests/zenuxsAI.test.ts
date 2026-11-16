@@ -261,3 +261,55 @@ describe("Zenuxs AI - Multi-Chat & Permanent Storage", () => {
     expect(title).toBe("Draw a complete user registratio...");
   });
 });
+
+describe("Zenuxs AI - Edit & Update Tool", () => {
+  it("edits and updates existing elements by id", async () => {
+    const { executeCanvasTool, executeUpdateElements } = await import(
+      "../services/zenuxsAI/canvasTools"
+    );
+
+    const existingElements: any[] = [
+      {
+        id: "box_1",
+        type: "rectangle",
+        x: 100,
+        y: 100,
+        width: 150,
+        height: 80,
+        backgroundColor: "transparent",
+        strokeColor: "#1e1e1e",
+        isDeleted: false,
+      },
+    ];
+
+    let capturedElements: any[] = [];
+    const mockAPI: any = {
+      getSceneElements: () => existingElements,
+      updateScene: vi.fn(({ elements }) => {
+        capturedElements = elements;
+      }),
+    };
+
+    // Test executeUpdateElements with single update object
+    const updateResult = executeUpdateElements(mockAPI, {
+      id: "box_1",
+      backgroundColor: "#b2f2bb",
+      strokeColor: "#2f9e44",
+      text: "Updated Service",
+    });
+
+    expect(updateResult.success).toBe(true);
+    expect(capturedElements.length).toBe(1);
+    expect(capturedElements[0].backgroundColor).toBe("#b2f2bb");
+    expect(capturedElements[0].strokeColor).toBe("#2f9e44");
+
+    // Test alias 'edit_elements' through executeCanvasTool
+    const aliasResult = executeCanvasTool(mockAPI, "edit_elements", {
+      updates: [{ id: "box_1", x: 250, y: 300 }],
+    });
+
+    expect(aliasResult.success).toBe(true);
+    expect(capturedElements[0].x).toBe(250);
+    expect(capturedElements[0].y).toBe(300);
+  });
+});

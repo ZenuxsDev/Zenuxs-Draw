@@ -999,23 +999,33 @@ export const executeCreateElements = (
   };
 };
 
-// Tool: update_elements
+// Tool: update_elements (also handles edit_elements / modify_elements)
 export const executeUpdateElements = (
   excalidrawAPI: ExcalidrawImperativeAPI,
-  args: { updates: Array<{ id: string; [key: string]: any }> },
+  args: any,
 ) => {
-  if (
-    !args.updates ||
-    !Array.isArray(args.updates) ||
-    args.updates.length === 0
-  ) {
+  const rawList = Array.isArray(args)
+    ? args
+    : Array.isArray(args?.updates)
+    ? args.updates
+    : Array.isArray(args?.elements)
+    ? args.elements
+    : args?.id
+    ? [args]
+    : [];
+
+  if (!rawList || rawList.length === 0) {
     return { success: false, error: "No updates provided" };
   }
 
   const updatesMap = new Map<string, any>();
-  for (const u of args.updates) {
-    if (u.id) {
-      updatesMap.set(u.id, u);
+  for (const item of rawList) {
+    if (item && item.id) {
+      const u = { ...item };
+      if (u.text === undefined && u.label !== undefined) {
+        u.text = typeof u.label === "string" ? u.label : u.label?.text;
+      }
+      updatesMap.set(String(u.id), u);
     }
   }
 
@@ -1053,7 +1063,7 @@ export const executeUpdateElements = (
   });
 
   // Also check if any container had its text updated and update its bound text element
-  for (const update of args.updates) {
+  for (const update of rawList) {
     if (update.text !== undefined) {
       const containerEl = elementsMap.get(update.id);
       if (
@@ -1160,6 +1170,8 @@ export const executeCanvasTool = (
     case "create_elements":
       return executeCreateElements(excalidrawAPI, args, userPrompt);
     case "update_elements":
+    case "edit_elements":
+    case "modify_elements":
       return executeUpdateElements(excalidrawAPI, args);
     case "delete_elements":
       return executeDeleteElements(excalidrawAPI, args);

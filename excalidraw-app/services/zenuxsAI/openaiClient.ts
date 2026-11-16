@@ -338,6 +338,8 @@ const extractToolCallFromText = (
           "create_elements",
           "get_canvas_elements",
           "update_elements",
+          "edit_elements",
+          "modify_elements",
           "delete_elements",
           "clear_canvas",
         ].includes(toolName)
