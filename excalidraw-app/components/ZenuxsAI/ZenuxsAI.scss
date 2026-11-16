@@ -96,6 +96,49 @@
     height: 48px;
     overflow: hidden;
   }
+
+  .zenuxs-ai-toast {
+    position: absolute;
+    bottom: 4.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111827;
+    color: #ffffff;
+    padding: 0.45rem 0.95rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    z-index: 300;
+    animation: toast-fade 0.2s ease-out;
+    pointer-events: none;
+    white-space: nowrap;
+
+    svg {
+      color: #10b981;
+      flex-shrink: 0;
+    }
+
+    .theme--dark & {
+      background: #27272a;
+      color: #f4f4f5;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+  }
+}
+
+@keyframes toast-fade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 @keyframes slide-up-fade {
@@ -204,6 +247,124 @@
         color: #7c3aed;
       }
     }
+
+    .export-menu-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .export-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 250px;
+      background: var(--color-surface-lowest, #ffffff);
+      border: 1px solid var(--color-surface-low, #e5e7eb);
+      border-radius: 10px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      padding: 0.4rem;
+      z-index: 200;
+      animation: dropdown-fade 0.15s ease-out;
+
+      .theme--dark & {
+        background: #1e1e24;
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.6);
+      }
+
+      .dropdown-section-title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-subtle, #9ca3af);
+        padding: 0.35rem 0.5rem 0.2rem 0.5rem;
+      }
+
+      .dropdown-divider {
+        height: 1px;
+        background: var(--color-surface-low, #e5e7eb);
+        margin: 0.35rem 0.25rem;
+
+        .theme--dark & {
+          background: rgba(255, 255, 255, 0.08);
+        }
+      }
+
+      .dropdown-menu-item {
+        width: 100%;
+        height: auto;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        color: var(--color-text, #374151);
+        transition: background 0.12s ease;
+
+        svg {
+          flex-shrink: 0;
+          margin-top: 2px;
+          color: #7c3aed;
+        }
+
+        .item-text {
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+
+          .item-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            line-height: 1.2;
+            color: var(--color-text, #1f2937);
+
+            .theme--dark & {
+              color: #f3f4f6;
+            }
+          }
+
+          .item-desc {
+            font-size: 0.68rem;
+            color: var(--color-text-subtle, #9ca3af);
+            line-height: 1.2;
+          }
+        }
+
+        &:hover {
+          background: rgba(124, 58, 237, 0.08);
+
+          .item-title {
+            color: #7c3aed;
+          }
+        }
+
+        .theme--dark &:hover {
+          background: rgba(124, 58, 237, 0.2);
+
+          .item-title {
+            color: #a78bfa;
+          }
+        }
+      }
+    }
+  }
+}
+
+@keyframes dropdown-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -239,6 +400,34 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+
+    .thread-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--color-text-subtle, #6b7280);
+      font-size: 0.72rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: rgba(124, 58, 237, 0.1);
+        color: #7c3aed;
+      }
+
+      .theme--dark & {
+        color: #9ca3af;
+
+        &:hover {
+          background: rgba(124, 58, 237, 0.25);
+          color: #c4b5fd;
+        }
+      }
+    }
 
     .clear-thread-btn {
       background: transparent;

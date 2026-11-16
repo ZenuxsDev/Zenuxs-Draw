@@ -8,6 +8,17 @@ import {
   executeCreateElements,
   executeGetCanvasElements,
 } from "../services/zenuxsAI/canvasTools";
+import {
+  exportCanvasAsJSON,
+  exportCanvasElementsOnly,
+  getCanvasJSONString,
+  exportChatAsJSON,
+  exportChatAsMarkdown,
+  getChatMarkdownString,
+  copyTextToClipboard,
+} from "../services/zenuxsAI/exportUtils";
+
+import type { ChatConversation } from "../services/zenuxsAI/types";
 
 describe("Zenuxs AI - Style Extraction & Inheritance", () => {
   it("extracts dominant style from existing canvas elements", () => {
@@ -392,5 +403,98 @@ describe("Zenuxs AI - Auto-Layout & Arrow Alignment", () => {
     // Arrow to bottom should exit from right edge of source (x=350) and arrive at left edge of child_bottom (x=500)
     expect(arrowBottom.x).toBe(350);
     expect(arrowBottom.points[1][0]).toBe(500 - 350); // delta X = 150
+  });
+});
+
+describe("Zenuxs AI - Direct Export Utilities", () => {
+  it("serializes canvas diagram to JSON and elements array to JSON", () => {
+    const mockElements = [
+      { id: "el1", type: "rectangle", x: 10, y: 10, isDeleted: false },
+      { id: "el2", type: "text", text: "Hello", isDeleted: false },
+      { id: "el3", type: "rectangle", isDeleted: true },
+    ];
+    const mockAPI: any = {
+      getSceneElements: vi.fn(() => mockElements),
+      getAppState: vi.fn(() => ({ theme: "light" })),
+      getFiles: vi.fn(() => ({})),
+    };
+
+    const canvasJson = getCanvasJSONString(mockAPI);
+    expect(typeof canvasJson).toBe("string");
+    const parsed = JSON.parse(canvasJson);
+    expect(parsed.type).toBe("excalidraw");
+    expect(parsed.elements.length).toBeGreaterThanOrEqual(1);
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    exportCanvasAsJSON(mockAPI, "my-canvas.json");
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
+    exportCanvasElementsOnly(mockAPI, "my-elements.json");
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+    clickSpy.mockRestore();
+  });
+
+  it("exports chat history to JSON and formatted Markdown", () => {
+    const mockConversation: ChatConversation = {
+      id: "conv_test",
+      title: "Architecture Planning",
+      createdAt: 1700000000000,
+      updatedAt: 1700000005000,
+      messages: [
+        {
+          id: "msg_1",
+          role: "user",
+          content: "Draw a system architecture diagram",
+          timestamp: 1700000001000,
+        },
+        {
+          id: "msg_2",
+          role: "assistant",
+          content: "Here is your system architecture diagram.",
+          toolExecutions: [
+            {
+              id: "tool_1",
+              name: "create_elements",
+              args: {},
+              status: "success",
+            },
+          ],
+          timestamp: 1700000004000,
+        },
+      ],
+    };
+
+    const md = getChatMarkdownString(mockConversation);
+    expect(md).toContain("# Architecture Planning");
+    expect(md).toContain("Draw a system architecture diagram");
+    expect(md).toContain("`create_elements` (success)");
+    expect(md).toContain("Here is your system architecture diagram.");
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    exportChatAsJSON(mockConversation);
+    expect(clickSpy).toHaveBeenCalled();
+
+    exportChatAsMarkdown(mockConversation);
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+    clickSpy.mockRestore();
+  });
+
+  it("copies text to clipboard with fallback support", async () => {
+    const writeTextSpy = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextSpy,
+      },
+    });
+
+    const success = await copyTextToClipboard("Test content to copy");
+    expect(success).toBe(true);
+    expect(writeTextSpy).toHaveBeenCalledWith("Test content to copy");
   });
 });
