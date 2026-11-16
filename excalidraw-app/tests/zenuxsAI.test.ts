@@ -1,0 +1,263 @@
+import { describe, it, expect, vi } from "vitest";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
+import {
+  extractCanvasStyle,
+  normalizeSkeletonElement,
+  executeCreateElements,
+  executeGetCanvasElements,
+} from "../services/zenuxsAI/canvasTools";
+
+describe("Zenuxs AI - Style Extraction & Inheritance", () => {
+  it("extracts dominant style from existing canvas elements", () => {
+    const mockElements = [
+      {
+        id: "1",
+        type: "rectangle",
+        isDeleted: false,
+        strokeColor: "#1971c2",
+        backgroundColor: "#a5d8ff",
+        fillStyle: "solid",
+        strokeWidth: 2,
+        roughness: 0,
+        x: 100,
+        y: 100,
+        width: 180,
+        height: 80,
+      },
+      {
+        id: "2",
+        type: "rectangle",
+        isDeleted: false,
+        strokeColor: "#1971c2",
+        backgroundColor: "#a5d8ff",
+        fillStyle: "solid",
+        strokeWidth: 2,
+        roughness: 0,
+        x: 350,
+        y: 100,
+        width: 180,
+        height: 80,
+      },
+    ] as unknown as ExcalidrawElement[];
+
+    const style = extractCanvasStyle(mockElements, { theme: "light" });
+
+    expect(style.dominantStrokeColor).toBe("#1971c2");
+    expect(style.dominantBackgroundColor).toBe("#a5d8ff");
+    expect(style.dominantFillStyle).toBe("solid");
+    expect(style.dominantStrokeWidth).toBe(2);
+    expect(style.dominantRoughness).toBe(0);
+  });
+
+  it("handles dark mode without picking black strokes", () => {
+    const mockElements = [
+      {
+        id: "1",
+        type: "rectangle",
+        isDeleted: false,
+        strokeColor: "#1e1e1e",
+        backgroundColor: "transparent",
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 100,
+      },
+    ] as unknown as ExcalidrawElement[];
+
+    const style = extractCanvasStyle(mockElements, { theme: "dark" });
+    expect(style.isDarkTheme).toBe(true);
+    expect(style.dominantStrokeColor).toBe("#e9ecef");
+  });
+
+  it("normalizes skeleton elements and inherits canvas style", () => {
+    const style = {
+      dominantStrokeColor: "#2f9e44",
+      dominantBackgroundColor: "#b2f2bb",
+      dominantFillStyle: "solid" as const,
+      dominantStrokeWidth: 2,
+      dominantStrokeStyle: "solid" as const,
+      dominantRoughness: 0,
+      palette: { strokeColors: ["#2f9e44"], backgroundColors: ["#b2f2bb"] },
+      isDarkTheme: false,
+    };
+
+    const raw = {
+      type: "rectangle",
+      text: "Test Box",
+      x: 100,
+      y: 100,
+    };
+
+    const normalized = normalizeSkeletonElement(raw, style);
+
+    expect(normalized.strokeColor).toBe("#2f9e44");
+    expect(normalized.backgroundColor).toBe("#b2f2bb");
+    expect(normalized.fillStyle).toBe("solid");
+    expect(normalized.strokeWidth).toBe(2);
+    expect(normalized.roughness).toBe(0);
+    expect(normalized.label.text).toBe("Test Box");
+  });
+
+  it("prevents frame crash and safely converts to dashed container rectangle", () => {
+    const rawFrame = {
+      type: "frame",
+      name: "My Frame",
+      x: 50,
+      y: 50,
+      width: 400,
+      height: 300,
+    };
+
+    const normalized = normalizeSkeletonElement(rawFrame);
+    expect(normalized.type).toBe("rectangle");
+    expect(normalized.strokeStyle).toBe("dashed");
+    expect(normalized.children).toBeUndefined();
+    expect(normalized.label.text).toBe("My Frame");
+  });
+});
+
+describe("Zenuxs AI - Spatial Placement & Downstream Offset", () => {
+  it("automatically places elements below existing content when requested 'down it'", () => {
+    const existing = [
+      {
+        id: "exist_1",
+        type: "rectangle",
+        isDeleted: false,
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 150,
+      },
+    ] as unknown as ExcalidrawElement[];
+
+    let capturedElements: any[] = [];
+    const mockAPI: any = {
+      getAppState: () => ({ theme: "light" }),
+      getSceneElements: () => existing,
+      updateScene: vi.fn(({ elements }) => {
+        capturedElements = elements;
+      }),
+      setViewport: vi.fn(),
+    };
+
+    const newSkeletons = [
+      {
+        type: "rectangle",
+        x: 100,
+        y: 100, // LLM tried placing at same y: 100
+        width: 180,
+        height: 80,
+        text: "Database Service",
+      },
+    ];
+
+    executeCreateElements(
+      mockAPI,
+      { elements: newSkeletons },
+      "you make a another good structure, down it t",
+    );
+
+    // Existing maxY is 100 + 150 = 250.
+    // New element target Y should be >= 250 + 140 = 390.
+    const createdEl = capturedElements.find((el) => el.id !== "exist_1");
+    expect(createdEl).toBeDefined();
+    expect(createdEl.y).toBeGreaterThanOrEqual(390);
+  });
+
+  it("automatically shifts elements when they overlap existing elements", () => {
+    const existing = [
+      {
+        id: "exist_1",
+        type: "rectangle",
+        isDeleted: false,
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 150,
+      },
+    ] as unknown as ExcalidrawElement[];
+
+    let capturedElements: any[] = [];
+    const mockAPI: any = {
+      getAppState: () => ({ theme: "light" }),
+      getSceneElements: () => existing,
+      updateScene: vi.fn(({ elements }) => {
+        capturedElements = elements;
+      }),
+      setViewport: vi.fn(),
+    };
+
+    // LLM forgot to specify placement, but elements collide with existing (100, 100)
+    const newSkeletons = [
+      {
+        type: "rectangle",
+        x: 120,
+        y: 120,
+        width: 150,
+        height: 60,
+        text: "Overlapping Box",
+      },
+    ];
+
+    executeCreateElements(mockAPI, { elements: newSkeletons });
+
+    const createdEl = capturedElements.find((el) => el.id !== "exist_1");
+    expect(createdEl).toBeDefined();
+    // Overlap prevention should push it below existing diagram (250 + 140 = 390)
+    expect(createdEl.y).toBeGreaterThanOrEqual(390);
+  });
+
+  it("includes canvas style and open space recommendations in executeGetCanvasElements", () => {
+    const existing = [
+      {
+        id: "exist_1",
+        type: "rectangle",
+        isDeleted: false,
+        x: 50,
+        y: 50,
+        width: 200,
+        height: 100,
+        strokeColor: "#e03131",
+      },
+    ] as unknown as ExcalidrawElement[];
+
+    const mockAPI: any = {
+      getAppState: () => ({ theme: "light", selectedElementIds: {} }),
+      getSceneElements: () => existing,
+    };
+
+    const result = executeGetCanvasElements(mockAPI, {});
+    expect(result.canvas_bounds).toBeDefined();
+    expect(result.canvas_bounds?.maxY).toBe(150);
+    expect(result.canvas_style.dominantStrokeColor).toBe("#e03131");
+    expect(result.open_space_recommendations.below_existing?.y).toBe(290); // 150 + 140
+  });
+});
+
+describe("Zenuxs AI - Multi-Chat & Permanent Storage", () => {
+  it("creates, saves, and loads multiple conversations in persistent storage", async () => {
+    const {
+      createNewConversation,
+      loadConversations,
+      saveConversations,
+      generateTitleFromPrompt,
+    } = await import("../services/zenuxsAI/chatStorage");
+
+    const conv1 = createNewConversation("Diagram 1");
+    const conv2 = createNewConversation("Diagram 2");
+
+    saveConversations([conv1, conv2]);
+    const loaded = loadConversations();
+
+    expect(loaded.length).toBe(2);
+    expect(loaded[0].id).toBe(conv1.id);
+    expect(loaded[1].id).toBe(conv2.id);
+
+    const title = generateTitleFromPrompt(
+      "Draw a complete user registration workflow",
+    );
+    expect(title).toBe("Draw a complete user registratio...");
+  });
+});

@@ -142,6 +142,7 @@ import DebugCanvas, {
 } from "./components/DebugCanvas";
 import { useSimulatedCollaborators } from "./debugCollaborators";
 import { AIComponents } from "./components/AI";
+import { ZenuxsAIModal, ZenuxsAITrigger } from "./components/ZenuxsAI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
 import "./index.scss";
@@ -376,6 +377,7 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [isZenuxsAIOpen, setIsZenuxsAIOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -1041,6 +1043,7 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={isCollabAvailable}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
+          onOpenZenuxsAI={() => setIsZenuxsAIOpen(true)}
         />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
@@ -1068,6 +1071,19 @@ const ExcalidrawWrapper = () => {
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
         {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {excalidrawAPI && (
+          <>
+            <ZenuxsAITrigger
+              isOpen={isZenuxsAIOpen}
+              onToggle={() => setIsZenuxsAIOpen((prev) => !prev)}
+            />
+            <ZenuxsAIModal
+              excalidrawAPI={excalidrawAPI}
+              isOpen={isZenuxsAIOpen}
+              onClose={() => setIsZenuxsAIOpen(false)}
+            />
+          </>
+        )}
 
         <TTDDialogTrigger />
         {isCollaborating && isOffline && (
@@ -1118,6 +1134,22 @@ const ExcalidrawWrapper = () => {
 
         <CommandPalette
           customCommandPaletteItems={[
+            {
+              label: "Zenuxs AI Assistant",
+              category: DEFAULT_CATEGORIES.app,
+              predicate: true,
+              keywords: [
+                "ai",
+                "assistant",
+                "generate",
+                "canvas",
+                "draw",
+                "chat",
+                "zenuxs",
+                "llm",
+              ],
+              perform: () => setIsZenuxsAIOpen(true),
+            },
             {
               label: t("labels.liveCollaboration"),
               category: DEFAULT_CATEGORIES.app,

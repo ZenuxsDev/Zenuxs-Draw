@@ -13,6 +13,46 @@ import { MERMAID_CHUNKS_LIST_NAME } from "./data/cacheMermaidChunks";
 
 import type { Plugin, Rollup } from "vite";
 
+const openaiProxyPlugin = (): Plugin => ({
+  name: "openai-proxy-plugin",
+  configureServer(server) {
+    server.middlewares.use("/api/openai-proxy", (req, res) => {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.end("Method Not Allowed");
+        return;
+      }
+      let body = "";
+      req.on("data", (chunk: any) => {
+        body += chunk;
+      });
+      req.on("end", async () => {
+        try {
+          const { url, headers, body: payload } = JSON.parse(body);
+          const proxyRes = await fetch(url, {
+            method: "POST",
+            headers: headers || {},
+            body: JSON.stringify(payload),
+          });
+          const text = await proxyRes.text();
+          res.statusCode = proxyRes.status;
+          for (const [key, val] of proxyRes.headers.entries()) {
+            // avoid content-encoding conflicts if response was uncompressed by fetch
+            if (key.toLowerCase() !== "content-encoding" && key.toLowerCase() !== "content-length") {
+              res.setHeader(key, val);
+            }
+          }
+          res.end(text);
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: { message: err.message || "Proxy error" } }));
+        }
+      });
+    });
+  },
+});
+
 /**
  * Collects into `lazyChunkFileNames` the chunks reachable only via a dynamic
  * import of a module matching `moduleRegex`, so we can exclude them from the
@@ -271,6 +311,7 @@ export default defineConfig(({ mode }) => {
       assetsInlineLimit: 0,
     },
     plugins: [
+      openaiProxyPlugin(),
       Sitemap({
         hostname: "https://excalidraw.com",
         outDir: "build",
@@ -394,10 +435,10 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 2.3 * 1024 ** 2, // 2.3MB
         },
         manifest: {
-          short_name: "Excalidraw",
-          name: "Excalidraw",
+          short_name: "Zenuxs Draw",
+          name: "Zenuxs Draw",
           description:
-            "Excalidraw is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
+            "Zenuxs Draw is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
           icons: [
             {
               src: "android-chrome-192x192.png",
